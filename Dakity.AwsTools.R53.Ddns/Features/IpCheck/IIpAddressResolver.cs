@@ -9,7 +9,7 @@ namespace Dakity.AwsTools.R53.Ddns.Features.IpCheck;
 public interface IIpAddressResolver
 {
 	/// <summary>
-	/// Allows to look up the local network gateway IP address.
+	/// Retrieves the local network gateway IP address.
 	/// </summary>
 	/// <returns>The external IP address.</returns>
 	Task<string> GetExternalIpAddressAsync();
