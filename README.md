@@ -43,7 +43,7 @@ How often should it check for IP change.
 
 **AwsAccounts**
 
-This is an array that support running the tool against multiple AWS accounts. The recommendation is to create a dedicated IM role applying the least privilege principle with permissions to only do the records update.
+This is an array that support running the tool against multiple AWS accounts. The recommendation is to create a dedicated IAM role applying the least privilege principle with permissions to only do the records update.
 
 - Name - is use as key to read the data. The recommendation is to use the domain name.
 - Credentials - an object containing the IAM role key and secret.
