@@ -15,7 +15,7 @@ public interface IIpAddressResolver
 	Task<string> GetExternalIpAddressAsync();
 
 	/// <summary>
-	/// Allows to retrieve the local machine IP address.
+	/// Retrieves the local machine IP address(es).
 	/// </summary>
 	/// <returns>A collection of <see cref="IPAddress"/> containing the local machine IP addresses.</returns>
 	Task<IPAddress[]> GetMachineIpAddressAsync();
