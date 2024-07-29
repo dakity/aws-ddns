@@ -90,7 +90,7 @@ public class DynamicDnsService(ILogger<DynamicDnsService> logger, IAmazonRoute53
 					status = change.ChangeInfo.Status;
 
 					logger.LogInformation("Change is pending ...");
-					Thread.Sleep(15000);
+					await Task.Delay(15000, cancellationToken);
 				} while (status == ChangeStatus.PENDING);
 
 
