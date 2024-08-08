@@ -41,9 +41,8 @@ public class IpAddressResolver(ILogger<IpAddressResolver> logger, HttpClient cli
 			{
 				var externalIpAddress = responseContent.TrimEnd(Environment.NewLine.ToCharArray());
 
-				Console.WriteLine();
-				logger.LogInformation($"New IP: {externalIpAddress}");
-				Console.WriteLine();
+				logger.LogInformation("\n= Current Public IP: {externalIpAddress}. \n", externalIpAddress);
+
 
 				return externalIpAddress;
 			}

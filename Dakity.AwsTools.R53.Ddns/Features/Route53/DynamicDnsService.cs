@@ -1,16 +1,16 @@
 using System;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Amazon.Route53;
 using Amazon.Route53.Model;
-using Dakity.AwsTools.R53.Ddns.Features.IpCheck;
 using Microsoft.Extensions.Logging;
 
 namespace Dakity.AwsTools.R53.Ddns.Features.Route53;
 
-public class DynamicDnsService(ILogger<DynamicDnsService> logger, IAmazonRoute53ClientFactory route53ClientFactory, IIpAddressResolver ipAddressResolver) : IDynamicDnsService
+public class DynamicDnsService(ILogger<DynamicDnsService> logger, IAmazonRoute53ClientFactory route53ClientFactory) : IDynamicDnsService
 {
 	public async Task UpdateDnsAsync(UpdateDnsRequest request, CancellationToken cancellationToken)
 	{
@@ -18,19 +18,25 @@ public class DynamicDnsService(ILogger<DynamicDnsService> logger, IAmazonRoute53
 		{
 			IAmazonRoute53 client = route53ClientFactory.BuildClient(request.AccountConfig.Credentials.Key, request.AccountConfig.Credentials.Secret);
 
-			var externalIpAddress = await ipAddressResolver.GetExternalIpAddressAsync();
-
 			var hostedZonesResponse = await client.ListHostedZonesAsync(cancellationToken);
 
 			if (!hostedZonesResponse.HostedZones.Any()) return;
 
-			foreach (var hostedZone in hostedZonesResponse.HostedZones.Where(x => request.Domain.Name.Contains(x.Name)))
+			var domainHostedZones = hostedZonesResponse.HostedZones.Where(x => request.Domain.Name.Contains(x.Name)).ToImmutableList();
+
+			if (!domainHostedZones.Any())
+			{
+				logger.LogWarning("\n= No hosted zones were found for domain {0} \n", request.Domain.Name);
+				return;
+			}
+
+			foreach (var hostedZone in domainHostedZones)
 			{
 				var targetHostedZone = request.Domain;
 
 				if (targetHostedZone == null) continue;
 
-				logger.LogInformation($"Processing Zone {targetHostedZone.Name} STARTED ===========================.");
+				logger.LogInformation("Processing Zone {0}", targetHostedZone.Name);
 
 				var listResourceRecordSetsResponse = await client.ListResourceRecordSetsAsync(new ListResourceRecordSetsRequest(hostedZone.Id), cancellationToken);
 
@@ -41,7 +47,7 @@ public class DynamicDnsService(ILogger<DynamicDnsService> logger, IAmazonRoute53
 				var changeBatch = new ChangeBatch();
 				foreach (var domainName in targetHostedZone.RecordNames)
 				{
-					logger.LogInformation($"Processing Record {domainName}");
+					logger.LogInformation("Updating {0}", domainName);
 
 					ResourceRecordSet domainRecordSet;
 					try
@@ -50,15 +56,15 @@ public class DynamicDnsService(ILogger<DynamicDnsService> logger, IAmazonRoute53
 					}
 					catch
 					{
-						logger.LogInformation($"{domainName} not configured in Route53.");
+						logger.LogWarning("\n{0} not configured in Route53. \n", domainName);
 						continue;
 					}
 
 					// If DNS record IP matches current external IP, exit loop.
-					if (domainRecordSet.ResourceRecords.Any(x => x.Value.Contains(externalIpAddress))) continue;
+					if (domainRecordSet.ResourceRecords.Any(x => x.Value.Contains(request.ExternalIpAddress))) continue;
 
 					// IP is different, add update record IP and add it to the changes batch collection.
-					domainRecordSet.ResourceRecords = [new ResourceRecord { Value = externalIpAddress }];
+					domainRecordSet.ResourceRecords = [new ResourceRecord { Value = request.ExternalIpAddress }];
 
 					changeBatch.Changes.Add(new Change
 					{
@@ -70,7 +76,8 @@ public class DynamicDnsService(ILogger<DynamicDnsService> logger, IAmazonRoute53
 				if (!changeBatch.Changes.Any())
 				{
 					// Nothing to update.
-					logger.LogInformation("= All DNS records are up to date. DONE ===========================.");
+					logger.LogInformation("All DNS records are up to date.");
+
 					continue;
 				}
 
@@ -94,12 +101,12 @@ public class DynamicDnsService(ILogger<DynamicDnsService> logger, IAmazonRoute53
 				} while (status == ChangeStatus.PENDING);
 
 
-				logger.LogInformation($"Processing Zone {targetHostedZone.Name} COMPLETED ===========================.");
+				logger.LogInformation("Hosted Zone {0} updated successfully. \n================================================================== DONE\n", targetHostedZone.Name);
 			}
 		}
 		catch (Exception ex)
 		{
-			logger.LogInformation(ex, ex.Message);
+			logger.LogError(ex, ex.Message);
 			throw;
 		}
 	}
